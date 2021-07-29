@@ -27,9 +27,8 @@ MultiAgentManager(policies...) =
 
 (A::MultiAgentManager)(env::AbstractEnv, ::Sequential) = A[current_player(env)](env)
 
-function (A::MultiAgentManager)(env::AbstractEnv, ::Simultaneous)
-    @error "MultiAgentManager doesn't support simultaneous environments. Please consider applying `SequentialEnv` wrapper to environment first."
-end
+function (A::MultiAgentManager)(env::AbstractEnv, ::Simultaneous) = 
+    [a(env) for a in A.agents]
 
 function (A::MultiAgentManager)(stage::AbstractStage, env::AbstractEnv)
     for agent in values(A.agents)
