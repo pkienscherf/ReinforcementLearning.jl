@@ -42,6 +42,6 @@ function RLBase.update!(
 end
 
 
-(p::NamedPolicy)(env::AbstractEnv) = p.policy(env)
-(p::NamedPolicy)(s::AbstractStage, env::AbstractEnv) = p.policy(s, env)
-(p::NamedPolicy)(s::PreActStage, env::AbstractEnv, action) = p.policy(s, env, action)
+(p::NamedPolicy)(env::AbstractEnv) = p.policy(env, p.name)
+(p::NamedPolicy)(s::AbstractStage, env::AbstractEnv) = p.policy(s, env, p.name)
+(p::NamedPolicy)(s::PreActStage, env::AbstractEnv, action) = p.policy(s, env, action, p.name)

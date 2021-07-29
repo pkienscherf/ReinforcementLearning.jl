@@ -22,6 +22,7 @@ end
 functor(x::Agent) = (policy = x.policy,), y -> @set x.policy = y.policy
 
 (agent::Agent)(env) = agent.policy(env)
+(agent::Agent)(env, p) = agent.policy(env, p)
 
 function check(agent::Agent, env::AbstractEnv)
     if ActionStyle(env) === FULL_ACTION_SET &&
@@ -74,11 +75,29 @@ function (agent::Agent)(stage::PreActStage, env::AbstractEnv, action)
     update!(agent.policy, agent.trajectory, env, stage)
 end
 
+function (agent::Agent)(stage::AbstractStage, env::AbstractEnv, p)
+    update!(agent.trajectory, agent.policy, env, stage, p)
+    update!(agent.policy, agent.trajectory, env, stage, p)
+end
+
+function (agent::Agent)(stage::PreActStage, env::AbstractEnv, action, p)
+    update!(agent.trajectory, agent.policy, env, stage, action, p)
+    update!(agent.policy, agent.trajectory, env, stage, p)
+end
+
 function RLBase.update!(
     ::AbstractPolicy,
     ::AbstractTrajectory,
     ::AbstractEnv,
     ::AbstractStage,
+) end
+
+function RLBase.update!(
+    ::AbstractPolicy,
+    ::AbstractTrajectory,
+    ::AbstractEnv,
+    ::AbstractStage,
+    p
 ) end
 
 #####
@@ -91,6 +110,15 @@ function RLBase.update!(
     ::AbstractEnv,
     ::AbstractStage,
 ) end
+
+function RLBase.update!(
+    ::AbstractTrajectory,
+    ::AbstractPolicy,
+    ::AbstractEnv,
+    ::AbstractStage,
+    p
+) end
+
 
 function RLBase.update!(
     trajectory::AbstractTrajectory,
@@ -107,6 +135,24 @@ function RLBase.update!(
     end
 end
 
+
+function RLBase.update!(
+    trajectory::AbstractTrajectory,
+    ::AbstractPolicy,
+    ::AbstractEnv,
+    ::PreEpisodeStage,
+    p
+)
+    if length(trajectory) > 0
+        pop!(trajectory[:state])
+        pop!(trajectory[:action])
+        if haskey(trajectory, :legal_actions_mask)
+            pop!(trajectory[:legal_actions_mask])
+        end
+    end
+end
+
+
 function RLBase.update!(
     trajectory::AbstractTrajectory,
     policy::AbstractPolicy,
@@ -121,6 +167,25 @@ function RLBase.update!(
         lasm =
             policy isa NamedPolicy ? legal_action_space_mask(env, nameof(policy)) :
             legal_action_space_mask(env)
+        push!(trajectory[:legal_actions_mask], lasm)
+    end
+end
+
+
+
+function RLBase.update!(
+    trajectory::AbstractTrajectory,
+    policy::AbstractPolicy,
+    env::AbstractEnv,
+    ::PreActStage,
+    action,
+    p
+)
+    s = state(env, p)
+    push!(trajectory[:state], s)
+    push!(trajectory[:action], action)
+    if haskey(trajectory, :legal_actions_mask)
+        lasm = legal_action_space_mask(env, p)
         push!(trajectory[:legal_actions_mask], lasm)
     end
 end
@@ -150,6 +215,31 @@ function RLBase.update!(
     end
 end
 
+
+function RLBase.update!(
+    trajectory::AbstractTrajectory,
+    policy::AbstractPolicy,
+    env::AbstractEnv,
+    ::PostEpisodeStage,
+    p
+)
+    # Note that for trajectories like `CircularArraySARTTrajectory`, data are
+    # stored in a SARSA format, which means we still need to generate a dummy
+    # action at the end of an episode. Here we simply select a random one using
+    # the global rng. In theory it shouldn't affect the performance of specific
+    # algorithm.
+    # TODO: how to inject a local rng here to avoid polluting the global rng
+    action = rand(action_space(env, p))
+
+    s = state(env, p) 
+    push!(trajectory[:state], s)
+    push!(trajectory[:action], action)
+    if haskey(trajectory, :legal_actions_mask)
+        lasm = legal_action_space_mask(env, p)
+        push!(trajectory[:legal_actions_mask], lasm)
+    end
+end
+
 function RLBase.update!(
     trajectory::AbstractTrajectory,
     policy::AbstractPolicy,
@@ -157,6 +247,18 @@ function RLBase.update!(
     ::PostActStage,
 )
     r = policy isa NamedPolicy ? reward(env, nameof(policy)) : reward(env)
+    push!(trajectory[:reward], r)
+    push!(trajectory[:terminal], is_terminated(env))
+end
+
+function RLBase.update!(
+    trajectory::AbstractTrajectory,
+    policy::AbstractPolicy,
+    env::AbstractEnv,
+    ::PostActStage,
+    p
+)
+    r = reward(env, p)
     push!(trajectory[:reward], r)
     push!(trajectory[:terminal], is_terminated(env))
 end

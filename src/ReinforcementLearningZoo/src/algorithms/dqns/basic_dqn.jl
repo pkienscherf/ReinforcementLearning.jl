@@ -40,6 +40,10 @@ end
     state |>
     x -> send_to_device(device(learner), x) |> learner.approximator |> send_to_host
 
+(learner::BasicDQNLearner)(env, p) =
+    state(env, p) |>
+    x -> send_to_device(device(learner), x) |> learner.approximator |> send_to_host
+
 function BasicDQNLearner(;
     approximator::Q,
     loss_func::F = huber_loss,

@@ -28,7 +28,7 @@ MultiAgentManager(policies...) =
 (A::MultiAgentManager)(env::AbstractEnv, ::Sequential) = A[current_player(env)](env)
 
 (A::MultiAgentManager)(env::AbstractEnv, ::Simultaneous) = 
-    [a(env) for a in A.agents]
+    (p(env) for (_, p) in A.agents)
 
 function (A::MultiAgentManager)(stage::AbstractStage, env::AbstractEnv)
     for agent in values(A.agents)
