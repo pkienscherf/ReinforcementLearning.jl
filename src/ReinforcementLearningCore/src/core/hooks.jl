@@ -11,7 +11,8 @@ export AbstractHook,
     DoEveryNStep,
     DoOnExit,
     UploadTrajectoryEveryNStep,
-    MultiAgentHook
+    MultiAgentHook,
+    MultiAgentTotalRewardPerEpisode
 
 using UnicodePlots:lineplot, lineplot!
 using Statistics
@@ -354,5 +355,34 @@ function (hook::MultiAgentHook)(
 )
     for (p, h) in zip(values(m.agents), values(hook.hooks))
         h(s, p, env, args...)
+    end
+end
+
+"""
+    MultiAgentTotalRewardPerEpisode(; rewards = Float64[], reward = 0.0, is_display_on_exit = true)
+
+Store the total reward of each episode in the field of `rewards`. If
+`is_display_on_exit` is set to `true`, a unicode plot will be shown at the [`PostExperimentStage`](@ref).
+"""
+Base.@kwdef mutable struct MultiAgentTotalRewardPerEpisode <: AbstractHook
+    rewards::Vector{Float64} = Float64[]
+    reward::Float64 = 0.0
+    is_display_on_exit::Bool = true
+end
+
+Base.getindex(h::MultiAgentTotalRewardPerEpisode) = h.rewards
+
+function (hook::MultiAgentTotalRewardPerEpisode)(::PostActStage, agent::MultiAgentManager, env)
+    hook.reward += sum(env.rewards)
+end
+
+function (hook::MultiAgentTotalRewardPerEpisode)(::PostEpisodeStage, agent::MultiAgentManager, env)
+    push!(hook.rewards, hook.reward)
+    hook.reward = 0
+end
+
+function (hook::MultiAgentTotalRewardPerEpisode)(::PostExperimentStage, agent::MultiAgentManager, env)
+    if hook.is_display_on_exit
+        println(lineplot(hook.rewards, title="Total reward per episode", xlabel="Episode", ylabel="Score"))
     end
 end
